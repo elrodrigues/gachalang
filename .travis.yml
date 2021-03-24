@@ -1,5 +1,5 @@
 language: c
-install: wget https://raw.githubusercontent.com/ocaml/ocaml-ci-scripts/1.5.0/.travis-ocaml.sh
+install: wget https://raw.githubusercontent.com/ocaml/ocaml-ci-scripts/master/.travis-ocaml.sh
 script: 
   - bash -ex .travis-ocaml.sh
   - echo PASS
@@ -7,7 +7,7 @@ script:
 # - docker
 env:
   global:
-  - OCAML_VERSION="latest"
+  - OCAML_VERSION="4.11"
   - OPAM_VERSION="2"
   # - PINS="qcheck:. qcheck-core:. qcheck-ounit:. qcheck-alcotest:."
   # - DISTRO="ubuntu-16.04"
