@@ -1,3 +1,2 @@
 *.exe
-# The one below is temperary
-C++Compi/
+.*.merlin
