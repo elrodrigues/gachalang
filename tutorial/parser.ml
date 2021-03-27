@@ -17,6 +17,7 @@ source_match means Class "source" contains Method "match"
 Class List: source, parser
 *)
 
+(* PRIMITIVE PARSERS *)
 (* Str.regexp -> source -> string parseresult option *)
 let source_match reg src = 
     match src with
@@ -69,3 +70,63 @@ let rec parser_zeroOrMore par =
         | Some (ParseResult (value, new_src)) -> interm (value::res) pars new_src
     in
     Parser (fun src -> interm [] par src)
+
+(* Bind Combinator *)
+(* 'a parser -> ('a -> 'b parser) -> 'b parser *)
+(* See test below. Rule is pair <- [0-9]+ "," [0-9]+*)
+let parser_bind par callback =
+    Parser (fun src ->
+        let pr = call_parser par src in
+        match pr with
+        | None -> None
+        | Some (ParseResult (value, new_src)) ->
+        call_parser (callback value) new_src
+    )
+
+(* BIND TEST: result should be ["12";"34"]
+let reg1 = parser_regexp (Str.regexp "[0-9]+")
+let reg2 = parser_regexp (Str.regexp ",")
+let pair = parser_bind reg1 (fun first -> 
+    parser_bind reg2 (fun _ -> 
+        parser_bind reg1 (fun second -> parser_constant [first;second])))
+call_parser pair Source ("12,34", 0)
+*)
+
+(* Complex Parsers *)
+(* And Combinator *)
+(* 'a parser -> 'b parser -> 'b parser *)
+let parser_and parer paree =
+    parser_bind parer (fun _ -> paree) 
+
+(* Map Combinator *)
+(* 'a parser -> ('a -> 'b) -> 'b parser *)
+let parser_map par map =
+    parser_bind par (fun value -> parser_constant (map value))
+
+(* AND-MAP TEST: result should be ["12";"34"]
+let reg1 = parser_regexp (Str.regexp "[0-9]+")
+let reg2 = parser_regexp (Str.regexp ",")
+let pair = parser_bind reg1 (fun first -> (parser_and reg2 (parser_map reg1 (fun second -> [first;second]))))
+;; call_parser pair (Source ("12,34", 0)) *)
+
+(* Null Combinator *)
+
+(* Maybe Combinator (only for strings)*)
+(* If used with bindings, the callback must filter "" *)
+(* string parser -> string parser *)
+let parser_maybe par =
+    parser_or par (parser_constant "")
+
+(* Helper Method *)
+(* parseStringToCompletion *)
+let parse_string_to_completion par str =
+    let src = Source (str, 0) in
+    match call_parser par src with
+    | None -> raise (GachaError "parse error at index 0")
+    | Some (ParseResult (value, new_src)) ->
+    match new_src with
+    | Source (n_str, index) ->
+    match index = (String.length n_str) with
+    | false -> raise (GachaError (Printf.sprintf "parse error at index %d" index))
+    | true -> value
+
