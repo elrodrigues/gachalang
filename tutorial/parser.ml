@@ -1,6 +1,5 @@
+#require "re"
 (* Scanless Parser Combinator *)
-(* For regexp functions *)
-#load "str.cma"
 
 (* Source type is open to extensions like lazy loading *)
 exception GachaError of string
@@ -22,12 +21,15 @@ Class List: source, parser
 let source_match reg src = 
     match src with
     | Source (str, index) ->
-        try (let new_index = (Str.search_forward reg str index) and 
-            matched_str = (Str.matched_string str) in 
-            let new_src = Source (str, new_index + (String.length matched_str)) in
-            Some (ParseResult (matched_str, new_src)))
-        with
-        | Not_found -> None
+        match Re.exec_opt reg str ~pos:index with
+        | None -> None
+        | Some ret ->
+        let _, n_index = Re.Group.offset ret 0 and
+        matched_str = Re.Group.get ret 0 in
+        Some (ParseResult (matched_str, Source (str, n_index)))
+
+let get_re str =
+    Re.Emacs.compile (Re.Emacs.re str)
 
 (* 'a parser -> source -> 'a parseresult option *)
 let call_parser par src = 
@@ -104,12 +106,10 @@ let parser_map par map =
     parser_bind par (fun value -> parser_constant (map value))
 
 (* AND-MAP TEST: result should be ["12";"34"]
-let reg1 = parser_regexp (Str.regexp "[0-9]+")
-let reg2 = parser_regexp (Str.regexp ",")
+let reg1 = parser_regexp (Re.Emacs.compile (Re.Emacs.re "[0-9]+"))
+let reg2 = parser_regexp (Re.Emacs.compile (Re.Emacs.re ","))
 let pair = parser_bind reg1 (fun first -> (parser_and reg2 (parser_map reg1 (fun second -> [first;second]))))
 ;; call_parser pair (Source ("12,34", 0)) *)
-
-(* Null Combinator *)
 
 (* Maybe Combinator (only for strings)*)
 (* If used with bindings, the callback must filter "" *)
@@ -129,4 +129,9 @@ let parse_string_to_completion par str =
     match index = (String.length n_str) with
     | false -> raise (GachaError (Printf.sprintf "parse error at index %d" index))
     | true -> value
+
+(* FIRST PASS *)
+let whitespace = parser_regexp (get_re "[ \\n\\r\\t]+")
+let comments = parser_or (parser_regexp (get_re "//.*$")) (parser_regexp (get_re "/\\*\\(.\\|\n\\)*\\*/"))
+let ignored = parser_zeroOrMore (parser_or whitespace comments)
 
