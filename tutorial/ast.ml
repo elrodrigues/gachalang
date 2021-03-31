@@ -29,6 +29,7 @@ type ast =
     | Assign of string * ast
     (* While *)
     | While of ast * ast
+    | Null
     
 (* ('a -> 'b -> bool) -> 'a list -> 'b list -> bool *)
 let rec map_interrupt boolfn list1 list2 =

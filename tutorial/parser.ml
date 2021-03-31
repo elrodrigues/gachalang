@@ -1,4 +1,5 @@
 #require "re"
+#mod_use "tutorial/ast.ml"
 (* Scanless Parser Combinator *)
 
 (* Source type is open to extensions like lazy loading *)
@@ -8,6 +9,7 @@ type 't parseresult = ParseResult of 't * source
 type 'p parser = 
     | Parser of (source -> 'p parseresult option)
     | ErrParser of (source -> 'p)
+let a_NULL = Ast.Null
 
 (* 
 FORMAT: class_method
@@ -116,6 +118,12 @@ let pair = parser_bind reg1 (fun first -> (parser_and reg2 (parser_map reg1 (fun
 (* string parser -> string parser *)
 let parser_maybe par =
     parser_or par (parser_constant "")
+(* Ast.ast parser -> Ast.ast parser *)
+let parser_maybe_ast par =
+    parser_or par (parser_constant a_NULL)
+(* 'a list parser -> 'a list parser *)
+let parser_maybe_lst par = 
+    parser_or par (parser_constant [])
 
 (* Helper Method *)
 (* parseStringToCompletion *)
@@ -134,4 +142,42 @@ let parse_string_to_completion par str =
 let whitespace = parser_regexp (get_re "[ \\n\\r\\t]+")
 let comments = parser_or (parser_regexp (get_re "//.*$")) (parser_regexp (get_re "/\\*\\(.\\|\n\\)*\\*/"))
 let ignored = parser_zeroOrMore (parser_or whitespace comments)
+(* Token Parser Combinator *)
+let token = (fun reg -> parser_bind (parser_regexp reg) (fun value -> parser_and ignored 
+    (parser_constant value)))
+
+(* Token Definitions *)
+(* Keywords *)
+let t_FUNCTION = token (get_re "function\\b")
+let t_IF = token (get_re "if\\b")
+let t_ELSE = token (get_re "else\\b")
+let t_RETURN = token (get_re "return\\b")
+let t_VAR = token (get_re "var\\b")
+let t_WHILE = token (get_re "while\\b")
+(* Punctuation *)
+let t_COMMA = token (get_re "[,]")
+let t_SEMICOLON = token (get_re ";")
+let t_LEFT_PAREN = token (get_re "[(]")
+let t_RIGHT_PAREN = token (get_re "[)]")
+let t_LEFT_BRACE = token (get_re "[{]")
+let t_RIGHT_BRACE = token (get_re "[}]")
+
+(* AST node generate *)
+let ast_NUMBER = parser_map (token (get_re "[0-9]+")) (fun digits -> Ast.Number (int_of_string digits))
+let t_ID = token (get_re "[a-zA-Z_][a-zA-Z0-9_]*")
+let ast_ID = parser_map t_ID (fun x -> Ast.Id x)
+let ast_NOT = parser_map (token (get_re "!")) (fun _ -> Ast.Not a_NULL)
+let ast_EQUAL = parser_map (token (get_re "==")) (fun _ -> Ast.Equal (a_NULL,a_NULL))
+let ast_EQUAL = parser_map (token (get_re "!=")) (fun _ -> Ast.NotEqual (a_NULL,a_NULL))
+let ast_PLUS = parser_map (token (get_re "[+]")) (fun _ -> Ast.Add (a_NULL,a_NULL))
+let ast_MINUS = parser_map (token (get_re "[-]")) (fun _ -> Ast.Subtract (a_NULL,a_NULL))
+let ast_STAR = parser_map (token (get_re "[*]")) (fun _ -> Ast.Multiply (a_NULL, a_NULL))
+let ast_SLASH = parser_map (token (get_re "[/]")) (fun _ -> Ast.Divide (a_NULL,a_NULL))
+
+(* args <- (expression (COMMA expression)\*\)? *)
+let args = fun exp -> parser_maybe_lst (parser_and exp 
+    (parser_zeroOrMore (parser_and t_COMMA exp)))
+(* call <- ID LEFT_PAREN args RIGHT_PAREN *)
+let call = fun exp -> parser_bind t_ID (fun callee -> parser_and t_LEFT_PAREN
+    (parser_bind (args exp) (fun ags -> parser_and t_RIGHT_BRACE (parser_constant (Ast.Call (callee, ags))))))
 
